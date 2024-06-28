@@ -4,58 +4,146 @@ using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Windows.Forms;
-using System.Collections.Generic;
 
 namespace tool_cut_reel
 {
     public partial class Home : Form
     {
         private BackgroundWorker backgroundWorker;
-        private System.Windows.Forms.ProgressBar progressBar;
-
+        private ProgressBar progressBar;
         private string ffmpegPath = @"C:\ffmpeg\ffmpeg.exe";
 
         public Home()
         {
             InitializeComponent();
-            //InitializeBackgroundWorker();
             InitializeControls();
         }
 
         private void InitializeControls()
         {
-            // Initialize ComboBox1 (already exists in your form designer)
+            progressBar = new ProgressBar
+            {
+                Minimum = 0,
+                Maximum = 100,
+                Value = 0
+            };
+
             selectFolder.Enabled = false;
             lblStatus.Text = "";
+            labelShowMessage.Text = "";
+
+            backgroundWorker = new BackgroundWorker
+            {
+                WorkerReportsProgress = true,
+                WorkerSupportsCancellation = true
+            };
+
+            backgroundWorker.DoWork += BackgroundWorker_DoWork;
+            backgroundWorker.ProgressChanged += BackgroundWorker_ProgressChanged;
+            backgroundWorker.RunWorkerCompleted += BackgroundWorker_RunWorkerCompleted;
         }
 
-        /*private void InitializeBackgroundWorker()
+        private void btnBrowse_Click(object sender, EventArgs e)
         {
-            backgroundWorker = new BackgroundWorker();
-            backgroundWorker.WorkerReportsProgress = true;
-            backgroundWorker.WorkerSupportsCancellation = true; // Enable cancellation support
-
-            backgroundWorker.DoWork += (sender, e) =>
+            using (var openFileDialog = new OpenFileDialog())
             {
+                openFileDialog.Multiselect = true;
+                openFileDialog.Filter = "Video Files|*.mp4;*.avi;*.mov;*.mkv|All Files|*.*";
+                openFileDialog.Title = "Select Video Files";
 
-                dynamic args = e.Argument;
-                string inputFile = args.InputFile;
-                string outputFile = args.OutputFile;
-                string arguments = args.Arguments;
-
-                var process = new Process
+                if (openFileDialog.ShowDialog() == DialogResult.OK)
                 {
-                    StartInfo = new ProcessStartInfo
+                    foreach (var fileName in openFileDialog.FileNames)
                     {
-                        FileName = ffmpegPath,
-                        Arguments = arguments,
-                        RedirectStandardOutput = true,
-                        RedirectStandardError = true,
-                        UseShellExecute = false,
-                        CreateNoWindow = true
+                        txtInputFile.AppendText(fileName + Environment.NewLine);
                     }
-                };
+                }
+            }
+        }
 
+        private void btnEditVideo_Click(object sender, EventArgs e)
+        {
+            var inputFiles = txtInputFile.Lines;
+            if (inputFiles.Length == 0)
+            {
+                MessageBox.Show("Please specify at least one input file.");
+                return;
+            }
+            if (string.IsNullOrEmpty(selectFolder.Text))
+            {
+                MessageBox.Show("Please specify your folder for save file.");
+                return;
+            }
+            selectSavePath.Enabled = false;
+            var outputFolder = selectFolder.Text;
+
+            if (!backgroundWorker.IsBusy)
+            {
+                progressBar.Value = 0;
+                backgroundWorker.RunWorkerAsync(new { inputFiles, outputFolder });
+            }
+        }
+
+        private void BackgroundWorker_DoWork(object sender, DoWorkEventArgs e)
+        {
+            var data = (dynamic)e.Argument;
+            var inputFiles = data.inputFiles;
+            var outputFolder = data.outputFolder;
+
+            int fileIndex = 0;
+            foreach (var inputFile in inputFiles)
+            {
+                if (backgroundWorker.CancellationPending)
+                {
+                    e.Cancel = true;
+                    return;
+                }
+                var fileName = Path.GetFileName(inputFile);
+                var outputFile = Path.Combine(outputFolder, fileName);
+                if (File.Exists(outputFile))
+                {
+                    File.Delete(outputFile);
+                }
+                EditVideo(inputFile, outputFile, fileIndex + 1, inputFiles.Length);
+                RemoveProcessedFile(inputFile, fileName);
+                fileIndex++;
+            }
+        }
+
+        private void RemoveProcessedFile(string processedFile, string fileName)
+        {
+            // Invoke to update the UI control on the main thread
+            if (txtInputFile.InvokeRequired)
+            {
+                txtInputFile.Invoke(new MethodInvoker(() => RemoveProcessedFile(processedFile, fileName)));
+            }
+            else
+            {
+                var lines = txtInputFile.Lines.ToList();
+                lines.Remove(processedFile);
+                txtInputFile.Lines = lines.ToArray();
+                labelShowMessage.Text = $"Completed: {fileName}";
+            }
+        }
+
+        private void EditVideo(string inputFile, string outputFile, int currentFileIndex, int totalFiles)
+        {
+            var filterChain = GenerateFilterChain();
+            var arguments = string.IsNullOrEmpty(filterChain) ? $"-i \"{inputFile}\" \"{outputFile}\"" : $"-i \"{inputFile}\" -vf \"{filterChain}\" \"{outputFile}\"";
+
+            using (var process = new Process
+            {
+                StartInfo = new ProcessStartInfo
+                {
+                    FileName = ffmpegPath,
+                    Arguments = arguments,
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                    UseShellExecute = false,
+                    CreateNoWindow = true
+                }
+            })
+            {
                 process.OutputDataReceived += (sender, e) =>
                 {
                     if (!string.IsNullOrEmpty(e.Data))
@@ -68,6 +156,7 @@ namespace tool_cut_reel
                 {
                     if (!string.IsNullOrEmpty(e.Data))
                     {
+                        ParseProgress(e.Data, currentFileIndex, totalFiles, inputFile);
                         Console.WriteLine("ERROR: " + e.Data);
                     }
                 };
@@ -75,200 +164,74 @@ namespace tool_cut_reel
                 process.Start();
                 process.BeginOutputReadLine();
                 process.BeginErrorReadLine();
-
-                process.WaitForExit();
-            };
-
-            if (backgroundWorker.IsBusy)
-            {
-                MessageBox.Show("Background IsBusy-.");
-            }
-
-            backgroundWorker.ProgressChanged += (sender, e) =>
-            {
-                progressBar.Value = e.ProgressPercentage;
-                lblProgressValue.Text = $"{e.ProgressPercentage}%"; // Update the label with progress
-                
-            };
-
-            backgroundWorker.RunWorkerCompleted += (sender, e) =>
-            {
-                if (e.Cancelled)
+                while (!process.HasExited)
                 {
-                    lblStatus.Text = "Operation cancelled.";
-                }
-                else if (e.Error != null)
-                {
-                    lblStatus.Text = "Error occurred: " + e.Error.Message;
-                }
-                else
-                {
-                    lblStatus.Text = "All videos edited.";
-                    MessageBox.Show("Background proccessing--.");
-                }
-            };
-        } */
-
-        private void btnBrowse_Click(object sender, EventArgs e)
-        {
-            using (OpenFileDialog openFileDialog = new OpenFileDialog())
-            {
-                openFileDialog.Multiselect = true;
-                openFileDialog.Filter = "Video Files|*.mp4;*.avi;*.mov;*.mkv|All Files|*.*";
-                openFileDialog.Title = "Select Video Files";
-
-                if (openFileDialog.ShowDialog() == DialogResult.OK)
-                {
-                    foreach (string fileName in openFileDialog.FileNames)
+                    if (backgroundWorker.CancellationPending)
                     {
-                        txtInputFile.AppendText(fileName + Environment.NewLine);
+                        process.Kill();
+                        break;
                     }
                 }
+                process.WaitForExit();
             }
         }
 
-        private void btnEditVideo_Click(object sender, EventArgs e)
+        private string GenerateFilterChain()
         {
-            string[] inputFiles = txtInputFile.Lines;
-            if (inputFiles?.Length == 0)
-            {
-                MessageBox.Show("Please specify at least one input file.");
-                return;
-            }
-            if(string.IsNullOrEmpty(selectFolder.Text))
-            {
-                MessageBox.Show("Please specify your folder for save file.");
-                return;
-            }
-            selectSavePath.Enabled = false;
-            string outputFolder = @$"{selectFolder.Text}";
-            //InitializeBackgroundWorker();
-            foreach (string inputFile in inputFiles)
-            {
-                if (backgroundWorker.CancellationPending)
-                {
-                    lblStatus.Text = "Operation cancelled.";
-                    return;
-                }
+            var filterChain = string.Empty;
 
-                string fileName = Path.GetFileName(inputFile);
-                string outputFile = Path.Combine(outputFolder, fileName);
-                if (File.Exists(outputFile))
-                {
-                    File.Delete(outputFile);
-                }
-                EditVideo(inputFile, outputFile);
-            }
-            txtInputFile.Text = string.Empty;
-            selectSavePath.Enabled = true;
-            lblStatus.Text = "All videos edited.";
-        }
-
-        private void EditVideo(string inputFile, string outputFile)
-        {
-            
-            string arguments = string.Empty;
-            string filterChain = string.Empty;
-            string flipValue = string.Empty;
-            List<string> filterChainComponents = new List<string>();
-            List<string> flipValues = new List<string>();
-
-            if (float.TryParse(txtBrightness.Text, out float brightness))
+            if (float.TryParse(txtBrightness.Text, out var brightness))
             {
                 filterChain = $"eq=brightness={brightness}";
             }
-            if (float.TryParse(txtContrast.Text, out float contrast))
+            if (float.TryParse(txtContrast.Text, out var contrast))
             {
-                if (!string.IsNullOrEmpty(filterChain))
-                    filterChain += $":contrast={contrast}";
-                else
-                    filterChain += $"eq=contrast={contrast}";
+                filterChain += string.IsNullOrEmpty(filterChain) ? $"eq=contrast={contrast}" : $":contrast={contrast}";
             }
-            if (float.TryParse(txtSaturation.Text, out float saturation))
+            if (float.TryParse(txtSaturation.Text, out var saturation))
             {
-                if (!string.IsNullOrEmpty(filterChain))
-                    filterChain += $":saturation={saturation}";
-                else
-                    filterChain += $"eq=saturation={saturation}";
+                filterChain += string.IsNullOrEmpty(filterChain) ? $"eq=saturation={saturation}" : $":saturation={saturation}";
             }
-
-            // Add flip options if checked
             if (checkBoxHflip.Checked)
             {
-                if (!string.IsNullOrEmpty(filterChain))
-                    filterChain += ",";
-                filterChain += "hflip";
+                filterChain += string.IsNullOrEmpty(filterChain) ? "hflip" : ",hflip";
             }
             if (checkBoxVflip.Checked)
             {
-                if (!string.IsNullOrEmpty(filterChain))
-                    filterChain += ",";
-                filterChain += "vflip";
+                filterChain += string.IsNullOrEmpty(filterChain) ? "vflip" : ",vflip";
             }
 
-            if (string.IsNullOrEmpty(filterChain))
+            return filterChain;
+        }
+
+        private void BackgroundWorker_ProgressChanged(object sender, ProgressChangedEventArgs e)
+        {
+            int progressValue = e.ProgressPercentage;
+            if (progressValue > progressBar.Maximum)
             {
-                arguments = $"-i {inputFile} {outputFile}";
+                progressValue = progressBar.Maximum;
             }
-            else
+            else if (progressValue < progressBar.Minimum)
             {
-                arguments = $"-i {inputFile} -vf {filterChain} {outputFile}";
+                progressValue = progressBar.Minimum;
             }
 
+            progressBar.Value = progressValue;
+            lblStatus.Text = $"Editing... {progressValue}%";
+        }
 
-            var process = new Process
-            {
-                StartInfo = new ProcessStartInfo
-                {
-                    FileName = ffmpegPath,
-                    Arguments = arguments,
-                    RedirectStandardOutput = true,
-                    RedirectStandardError = true,
-                    UseShellExecute = false,
-                    CreateNoWindow = true
-                }
-            };
-
-            process.OutputDataReceived += (sender, e) =>
-            {
-                MessageBox.Show("Background OutputDataReceived.");
-                if (e.Data != null)
-                {
-                    // Log output if needed
-                    Console.WriteLine(e.Data);
-                    
-                }
-            };
-
-            process.ErrorDataReceived += (sender, e) =>
-            {
-                if (e.Data != null)
-                {
-                    // Log errors if needed
-                    Console.WriteLine("ERROR: " + e.Data);
-                }
-            };
-
-            process.Start();
-            process.BeginOutputReadLine();
-            process.BeginErrorReadLine();
-
-            process.WaitForExit();
-
-            lblStatus.Text = "Video editing completed.";
+        private void BackgroundWorker_RunWorkerCompleted(object sender, RunWorkerCompletedEventArgs e)
+        {
+            selectSavePath.Enabled = true;
+            lblStatus.Text = e.Cancelled ? "Operation cancelled." : "All videos edited.";
+            labelShowMessage.Text = "";
         }
 
         private void btnGetCheckBox_Click(object sender, EventArgs e)
         {
-            string filterChain = string.Empty;
-            if (checkBoxHflip.Checked)
-            {
-                filterChain += ",hflip";
-            }
-            if (checkBoxVflip.Checked)
-            {
-                filterChain += ",vflip";
-            }
+            var filterChain = string.Empty;
+            if (checkBoxHflip.Checked) filterChain += ",hflip";
+            if (checkBoxVflip.Checked) filterChain += ",vflip";
             MessageBox.Show("Get check ," + filterChain);
         }
 
@@ -288,8 +251,6 @@ namespace tool_cut_reel
             }
         }
 
-
-
         private void btnCancelEdit_Click(object sender, EventArgs e)
         {
             selectSavePath.Enabled = true;
@@ -300,14 +261,12 @@ namespace tool_cut_reel
             }
         }
 
-        
-
         private void openEditedFolder_Click(object sender, EventArgs e)
         {
-            string outputFolder = selectFolder.Text;
+            var outputFolder = selectFolder.Text;
             if (Directory.Exists(outputFolder))
             {
-                System.Diagnostics.Process.Start("explorer.exe", outputFolder);
+                Process.Start("explorer.exe", outputFolder);
             }
             else
             {
@@ -317,15 +276,64 @@ namespace tool_cut_reel
 
         private void selectSavePath_Click(object sender, EventArgs e)
         {
-            using (FolderBrowserDialog folderBrowserDialog = new FolderBrowserDialog())
+            using (var folderBrowserDialog = new FolderBrowserDialog { Description = "Select Output Folder" })
             {
-                folderBrowserDialog.Description = "Select Output Folder";
-
                 if (folderBrowserDialog.ShowDialog() == DialogResult.OK)
                 {
                     selectFolder.Text = folderBrowserDialog.SelectedPath;
                 }
             }
         }
+
+
+
+        private void ParseProgress(string data, int currentFileIndex, int totalFiles, string inputFile)
+        {
+            if (string.IsNullOrEmpty(data))
+            {
+                return;
+            }
+
+            if (data.StartsWith("frame="))
+            {
+                string[] timeData = data.Split(new string[] { "time=" }, StringSplitOptions.None);
+                if (timeData.Length < 2) return;
+
+                string time = timeData[1].Split(' ')[0];
+
+                if (TimeSpan.TryParse(time, out TimeSpan currentTime))
+                {
+                    using (var ffmpegInfo = new Process
+                    {
+                        StartInfo = new ProcessStartInfo
+                        {
+                            FileName = ffmpegPath,
+                            Arguments = $"-i \"{inputFile}\"",
+                            RedirectStandardError = true,
+                            UseShellExecute = false,
+                            CreateNoWindow = true
+                        }
+                    })
+                    {
+                        ffmpegInfo.Start();
+                        string output = ffmpegInfo.StandardError.ReadToEnd();
+                        ffmpegInfo.WaitForExit();
+
+                        string[] durationData = output.Split(new string[] { "Duration: " }, StringSplitOptions.None);
+                        if (durationData.Length < 2) return;
+
+                        string durationString = durationData[1].Split(',')[0];
+
+                        if (TimeSpan.TryParse(durationString, out TimeSpan duration))
+                        {
+                            double progress = ((currentFileIndex * 100.0) + ((currentTime.TotalSeconds / duration.TotalSeconds) * 100.0)) / totalFiles;
+                            int progressPercentage = (int)Math.Min(100, progress);
+                            backgroundWorker.ReportProgress(progressPercentage);
+                        }
+                    }
+                }
+            }
+        }
+
     }
 }

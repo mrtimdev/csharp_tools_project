@@ -43,7 +43,7 @@ namespace tool_cut_reel
             checkBoxVflip = new CheckBox();
             lblStatus = new Label();
             btnCancelEdit = new Button();
-            lblProgressValue = new Label();
+            labelShowMessage = new Label();
             openEditedFolder = new Button();
             selectSavePath = new Button();
             selectFolder = new Label();
@@ -55,7 +55,7 @@ namespace tool_cut_reel
             btnEditVideo.ForeColor = SystemColors.ControlLightLight;
             btnEditVideo.Location = new Point(164, 396);
             btnEditVideo.Name = "btnEditVideo";
-            btnEditVideo.Size = new Size(146, 34);
+            btnEditVideo.Size = new Size(104, 34);
             btnEditVideo.TabIndex = 0;
             btnEditVideo.Text = "Edit Video";
             btnEditVideo.UseVisualStyleBackColor = false;
@@ -74,7 +74,7 @@ namespace tool_cut_reel
             btnBrowse.ForeColor = SystemColors.ControlLightLight;
             btnBrowse.Location = new Point(12, 396);
             btnBrowse.Name = "btnBrowse";
-            btnBrowse.Size = new Size(146, 34);
+            btnBrowse.Size = new Size(126, 34);
             btnBrowse.TabIndex = 4;
             btnBrowse.Text = "Browse";
             btnBrowse.UseVisualStyleBackColor = false;
@@ -132,7 +132,7 @@ namespace tool_cut_reel
             // 
             checkBoxHflip.AutoSize = true;
             checkBoxHflip.Cursor = Cursors.Hand;
-            checkBoxHflip.Location = new Point(588, 77);
+            checkBoxHflip.Location = new Point(19, 211);
             checkBoxHflip.Name = "checkBoxHflip";
             checkBoxHflip.Size = new Size(140, 24);
             checkBoxHflip.TabIndex = 12;
@@ -144,7 +144,7 @@ namespace tool_cut_reel
             // 
             checkBoxVflip.AutoSize = true;
             checkBoxVflip.Cursor = Cursors.Hand;
-            checkBoxVflip.Location = new Point(588, 119);
+            checkBoxVflip.Location = new Point(19, 253);
             checkBoxVflip.Name = "checkBoxVflip";
             checkBoxVflip.Size = new Size(119, 24);
             checkBoxVflip.TabIndex = 13;
@@ -164,30 +164,30 @@ namespace tool_cut_reel
             // 
             btnCancelEdit.BackColor = Color.Firebrick;
             btnCancelEdit.ForeColor = SystemColors.ControlLightLight;
-            btnCancelEdit.Location = new Point(316, 396);
+            btnCancelEdit.Location = new Point(274, 396);
             btnCancelEdit.Name = "btnCancelEdit";
-            btnCancelEdit.Size = new Size(164, 34);
+            btnCancelEdit.Size = new Size(112, 34);
             btnCancelEdit.TabIndex = 17;
             btnCancelEdit.Text = "Cancel Edit";
             btnCancelEdit.UseVisualStyleBackColor = false;
             btnCancelEdit.Click += btnCancelEdit_Click;
             // 
-            // lblProgressValue
+            // labelShowMessage
             // 
-            lblProgressValue.AutoSize = true;
-            lblProgressValue.Location = new Point(182, 216);
-            lblProgressValue.Name = "lblProgressValue";
-            lblProgressValue.Size = new Size(79, 20);
-            lblProgressValue.TabIndex = 18;
-            lblProgressValue.Text = "Processing";
+            labelShowMessage.AutoSize = true;
+            labelShowMessage.Location = new Point(164, 370);
+            labelShowMessage.Name = "labelShowMessage";
+            labelShowMessage.Size = new Size(67, 20);
+            labelShowMessage.TabIndex = 18;
+            labelShowMessage.Text = "Message";
             // 
             // openEditedFolder
             // 
             openEditedFolder.BackColor = Color.SteelBlue;
             openEditedFolder.ForeColor = SystemColors.ControlLightLight;
-            openEditedFolder.Location = new Point(624, 396);
+            openEditedFolder.Location = new Point(624, 391);
             openEditedFolder.Name = "openEditedFolder";
-            openEditedFolder.Size = new Size(164, 34);
+            openEditedFolder.Size = new Size(112, 34);
             openEditedFolder.TabIndex = 20;
             openEditedFolder.Text = "Open Edited";
             openEditedFolder.UseVisualStyleBackColor = false;
@@ -195,11 +195,11 @@ namespace tool_cut_reel
             // 
             // selectSavePath
             // 
-            selectSavePath.BackColor = Color.Green;
+            selectSavePath.BackColor = Color.HotPink;
             selectSavePath.ForeColor = SystemColors.ControlLightLight;
-            selectSavePath.Location = new Point(307, 253);
+            selectSavePath.Location = new Point(12, 283);
             selectSavePath.Name = "selectSavePath";
-            selectSavePath.Size = new Size(146, 34);
+            selectSavePath.Size = new Size(93, 34);
             selectSavePath.TabIndex = 21;
             selectSavePath.Text = "Save Path";
             selectSavePath.UseVisualStyleBackColor = false;
@@ -217,11 +217,11 @@ namespace tool_cut_reel
             // 
             AutoScaleDimensions = new SizeF(8F, 20F);
             AutoScaleMode = AutoScaleMode.Font;
-            ClientSize = new Size(1219, 437);
+            ClientSize = new Size(804, 437);
             Controls.Add(selectFolder);
             Controls.Add(selectSavePath);
             Controls.Add(openEditedFolder);
-            Controls.Add(lblProgressValue);
+            Controls.Add(labelShowMessage);
             Controls.Add(btnCancelEdit);
             Controls.Add(lblStatus);
             Controls.Add(checkBoxVflip);
@@ -258,7 +258,7 @@ namespace tool_cut_reel
         private CheckBox checkBoxVflip;
         private Label lblStatus;
         private Button btnCancelEdit;
-        private Label lblProgressValue;
+        private Label labelShowMessage;
         private Button openEditedFolder;
         private Button selectSavePath;
         private Label selectFolder;
